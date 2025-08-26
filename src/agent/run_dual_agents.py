@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-Dual Agent System Runner - Single Query Mode Only
+Dual Agent System Runner - Configurable Question Rounds
 
 This script runs two agents in sequence via langgraph server:
 1. Math Agent: Performs calculations using tools
 2. Question Agent: Generates follow-up questions based on the result
 
 Usage:
-    python run_dual_agents.py                      # Interactive input mode
-    python run_dual_agents.py "your math question" # Command line argument mode
+    python run_dual_agents.py                                    # Interactive input mode
+    python run_dual_agents.py "your math question"               # 1 question round (default)
+    python run_dual_agents.py "your math question" -r 3          # 3 question rounds
+    python run_dual_agents.py --rounds 5 "Calculate 10 * 20"     # 5 question rounds
     
 REQUIREMENTS:
 - Make sure the langgraph server is running: langgraph dev
@@ -18,6 +20,7 @@ REQUIREMENTS:
 
 import asyncio
 import sys
+import argparse
 from dual_agent_system import run_dual_agents
 
 
@@ -32,12 +35,12 @@ def _print_server_requirements():
 
 
 
-async def single_query_mode(query: str):
+async def single_query_mode(query: str, question_rounds: int = 1):
     """Run a single query through the dual agent system"""
     print(f"🔄 Running dual agent system for: '{query}'")
     
     try:
-        result = await run_dual_agents(query)
+        result = await run_dual_agents(query, question_rounds=question_rounds)
         
         if "error" in result:
             print(f"❌ Error: {result['error']}")
@@ -52,13 +55,26 @@ async def single_query_mode(query: str):
         print("-" * 30)
         print(result['step1_math_result'])
         
-        print(f"\n🤔 Step 2 - Generated Question:")
-        print("-" * 30)
-        print(result['step2_generated_question'])
+        # Display results for each question round
+        for round_data in result.get('question_rounds', []):
+            round_num = round_data['round']
+            print(f"\n🤔 Round {round_num} - Generated Question:")
+            print("-" * 30)
+            if round_data['generated_question']:
+                print(round_data['generated_question'])
+            else:
+                print(f"❌ Error: {round_data.get('error', 'Unknown error')}")
+            
+            print(f"\n🔢 Round {round_num} - Answer:")
+            print("-" * 30)
+            if round_data['answer']:
+                print(round_data['answer'])
+            else:
+                print(f"❌ Error: {round_data.get('error', 'Unknown error')}")
         
-        print(f"\n🔢 Step 3 - Answer to Question:")
-        print("-" * 30)
-        print(result['step3_answer_to_question'])
+        # Display summary
+        total_rounds = len(result.get('question_rounds', []))
+        print(f"\n📊 Summary: Completed {total_rounds}/{question_rounds} question rounds")
         
     except Exception as e:
         print(f"❌ Error: {e}")
@@ -67,10 +83,40 @@ async def single_query_mode(query: str):
 
 def main():
     """Main function to handle command line arguments or user input"""
-    if len(sys.argv) > 1:
+    parser = argparse.ArgumentParser(
+        description="Dual Agent System - Run math and question agents sequentially",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python run_dual_agents.py                                    # Interactive mode
+  python run_dual_agents.py "What is 15 + 27?"               # Direct query (1 round)
+  python run_dual_agents.py "What is 15 + 27?" -r 3          # Direct query (3 rounds)
+  python run_dual_agents.py --rounds 5 "Calculate 10 * 20"   # Direct query (5 rounds)
+
+REQUIREMENTS:
+- langgraph server must be running: langgraph dev
+- Server at http://127.0.0.1:2024  
+- Both math_agent and question_agent graphs deployed
+        """
+    )
+    
+    parser.add_argument(
+        'query', 
+        nargs='?', 
+        help='Math question to process (if not provided, interactive mode will be used)'
+    )
+    parser.add_argument(
+        '-r', '--rounds', 
+        type=int, 
+        default=1, 
+        help='Number of question rounds to run (default: 1)'
+    )
+    
+    args = parser.parse_args()
+    
+    if args.query:
         # Single query mode with command line argument
-        query = " ".join(sys.argv[1:])
-        asyncio.run(single_query_mode(query))
+        asyncio.run(single_query_mode(args.query, args.rounds))
     else:
         # Single query mode with user input
         print("🤖 Dual Agent System - Single Query Mode")
@@ -91,7 +137,23 @@ def main():
                 print("❌ Please enter a valid question.")
                 return
             
-            asyncio.run(single_query_mode(query))
+            # Ask for number of rounds in interactive mode
+            while True:
+                try:
+                    rounds_input = input(f"🔄 How many question rounds? (default: 1): ").strip()
+                    if not rounds_input:
+                        question_rounds = 1
+                        break
+                    question_rounds = int(rounds_input)
+                    if question_rounds < 1:
+                        print("❌ Number of rounds must be at least 1.")
+                        continue
+                    break
+                except ValueError:
+                    print("❌ Please enter a valid number.")
+                    continue
+            
+            asyncio.run(single_query_mode(query, question_rounds))
             
         except KeyboardInterrupt:
             print("\n\n👋 Interrupted by user. Goodbye!")
