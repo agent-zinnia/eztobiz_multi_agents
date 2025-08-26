@@ -1,0 +1,212 @@
+from langgraph_sdk import get_client
+from langchain_core.messages import HumanMessage
+import asyncio
+from typing import Dict, Any
+
+
+class DualAgentSystem:
+    """System that coordinates two agents using langgraph_sdk"""
+    
+    def __init__(self, url: str = "http://127.0.0.1:2024"):
+        """Initialize the dual agent system
+        
+        Args:
+            url: URL of the local langgraph server
+        """
+        self.url = url
+        self.client = get_client(url=url)
+    
+    def _extract_last_ai_message(self, messages: list) -> str:
+        """Extract the last AI message from a list of messages
+        
+        Args:
+            messages: List of messages from the agent state
+            
+        Returns:
+            The content of the last AI message, or a fallback message
+        """
+        # Find the last AI message
+        for msg in reversed(messages):
+            if hasattr(msg, 'type') and msg.type == "ai":
+                return msg.content
+            elif isinstance(msg, dict) and msg.get("type") == "ai":
+                return msg.get("content", "")
+        
+        # Fallback: get any message content
+        if messages:
+            last_msg = messages[-1]
+            if hasattr(last_msg, 'content'):
+                return last_msg.content
+            elif isinstance(last_msg, dict):
+                return last_msg.get("content", str(last_msg))
+            else:
+                return str(last_msg)
+        
+        return "No result generated"
+    
+    async def run_first_agent(self, query: str) -> Dict[str, Any]:
+        """Run the first agent (math calculation agent) with the given query
+        
+        Args:
+            query: The user's question/request
+            
+        Returns:
+            Dictionary containing the result from the first agent
+        """
+        try:
+            # Create a thread for the first agent
+            thread = await self.client.threads.create()
+            thread_id = thread["thread_id"]
+            
+            # Run the first agent (using the graph name from langgraph.json)
+            run = await self.client.runs.create(
+                thread_id=thread_id,
+                assistant_id="math_agent",  # This matches the graph name in langgraph.json
+                input={"messages": [HumanMessage(content=query)]}
+            )
+            
+            # Wait for completion
+            await self.client.runs.join(thread_id=thread_id, run_id=run["run_id"])
+            
+            # Get the final state/messages
+            state = await self.client.threads.get_state(thread_id=thread_id)
+            
+            # Extract messages from the state
+            messages = state.get("values", {}).get("messages", [])
+            last_ai_message = self._extract_last_ai_message(messages)
+            
+            return {
+                "success": True,
+                "result": last_ai_message,
+                "thread_id": thread_id,
+                "run_id": run["run_id"],
+                "debug_state": state  # For debugging
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "result": None
+            }
+    
+    async def analyze_result_with_question_agent(self, original_query: str, first_agent_result: str) -> str:
+        """Use the question agent via langgraph server to analyze the first agent's result
+        
+        Args:
+            original_query: The original user query
+            first_agent_result: Result from the first agent
+            
+        Returns:
+            Analysis and questions from the question agent
+        """
+        try:
+            # Create a thread for the question agent
+            thread = await self.client.threads.create()
+            thread_id = thread["thread_id"]
+            
+            # Run the question agent via server
+            run = await self.client.runs.create(
+                thread_id=thread_id,
+                assistant_id="question_agent",  # This matches the graph name in langgraph.json
+                input={
+                    "original_query": original_query,
+                    "first_agent_result": first_agent_result,
+                    "messages": []
+                }
+            )
+            
+            # Wait for completion
+            await self.client.runs.join(thread_id=thread_id, run_id=run["run_id"])
+            
+            # Get the final state/messages
+            state = await self.client.threads.get_state(thread_id=thread_id)
+            
+            # Extract messages from the state
+            messages = state.get("values", {}).get("messages", [])
+            last_ai_message = self._extract_last_ai_message(messages)
+            
+            return last_ai_message if last_ai_message != "No result generated" else "No analysis generated by question agent."
+                
+        except Exception as e:
+            return f"Error in question agent analysis: {str(e)}"
+    
+    async def run_dual_agent_workflow(self, user_query: str) -> Dict[str, Any]:
+        """Run the complete dual agent workflow
+        
+        Args:
+            user_query: The user's original question
+            
+        Returns:
+            Dictionary containing results from both agents
+        """
+        print(f"🔄 Starting dual agent workflow for query: '{user_query}'")
+        
+        # Step 1: Run the first agent
+        print("📊 Running first agent (math calculation agent)...")
+        first_result = await self.run_first_agent(user_query)
+        
+        if not first_result["success"]:
+            print(f"❌ First agent failed: {first_result['error']}")
+            return {
+                "error": f"First agent failed: {first_result['error']}",
+                "first_agent_result": None,
+                "question_agent_analysis": None
+            }
+        
+        print(f"✅ First agent completed. Result: {first_result['result']}")
+        print(f"🔍 Debug - First agent state: {first_result.get('debug_state', 'No debug info')}")
+        
+        # Step 2: Run the question agent to analyze the first result
+        print("🤔 Running question agent to analyze the result...")
+        analysis = await self.analyze_result_with_question_agent(
+            user_query, 
+            first_result["result"]
+        )
+        
+        print(f"✅ Question agent completed analysis.")
+        
+        return {
+            "original_query": user_query,
+            "first_agent_result": first_result["result"],
+            "question_agent_analysis": analysis,
+            "first_agent_metadata": {
+                "thread_id": first_result.get("thread_id"),
+                "run_id": first_result.get("run_id")
+            }
+        }
+
+
+# Convenience function for easy usage
+async def run_dual_agents(query: str, server_url: str = "http://127.0.0.1:2024") -> Dict[str, Any]:
+    """Convenience function to run the dual agent system
+    
+    Args:
+        query: User's question
+        server_url: URL of the langgraph server
+        
+    Returns:
+        Results from both agents
+    """
+    system = DualAgentSystem(url=server_url)
+    return await system.run_dual_agent_workflow(query)
+
+
+# Example usage
+if __name__ == "__main__":
+    async def main():
+        # Example query
+        query = "What is 15 + 27, and then multiply the result by 3?"
+        
+        # Run the dual agent system
+        result = await run_dual_agents(query)
+        
+        print("\n" + "="*50)
+        print("DUAL AGENT SYSTEM RESULTS")
+        print("="*50)
+        print(f"Original Query: {result['original_query']}")
+        print(f"\nFirst Agent Result: {result['first_agent_result']}")
+        print(f"\nQuestion Agent Analysis:\n{result['question_agent_analysis']}")
+        
+    # Run the example
+    asyncio.run(main())
