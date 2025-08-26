@@ -1,12 +1,11 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
-from langgraph.graph import START, StateGraph, MessagesState
+from langgraph.graph import START, StateGraph
 from typing import TypedDict, List
 
 
 class QuestionAgentState(TypedDict):
     """State for the question agent"""
-    original_query: str
     first_agent_result: str
     messages: List
 
@@ -30,7 +29,6 @@ question_sys_msg = SystemMessage(
 def question_agent_node(state: QuestionAgentState):
     """Node that generates questions about the first agent's result"""
     
-    # Prepare the prompt for the question agent
     analysis_prompt = f"""
     Math Result: {state['first_agent_result']}
     
@@ -41,7 +39,6 @@ def question_agent_node(state: QuestionAgentState):
     Example: "What would be the result if we divided this by 2?"
     """
     
-    # Get response from question agent
     response = question_llm.invoke([
         question_sys_msg,
         HumanMessage(content=analysis_prompt)
