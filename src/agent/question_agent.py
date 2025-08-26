@@ -16,14 +16,14 @@ question_llm = ChatOpenAI(model="gpt-4o-mini")
 
 # System message for question agent
 question_sys_msg = SystemMessage(
-    content="""You are a critical thinking assistant that analyzes results from other agents. 
+    content="""You are a critical thinking assistant that analyzes mathematical results. 
     Your role is to:
-    1. Review the result from the first agent
-    2. Ask thoughtful follow-up questions about the result
-    3. Identify potential issues, edge cases, or areas that need clarification
-    4. Provide constructive feedback and suggestions for improvement
+    1. Review the mathematical result provided
+    2. Generate ONE specific follow-up mathematical question based on the result
+    3. Focus on expanding or exploring the result further through mathematical operations
+    4. Create questions that can be answered using mathematical calculations
     
-    Be thorough but constructive in your analysis."""
+    Generate only mathematical questions that can be computed, not analytical or explanatory questions."""
 )
 
 
@@ -32,12 +32,13 @@ def question_agent_node(state: QuestionAgentState):
     
     # Prepare the prompt for the question agent
     analysis_prompt = f"""
-    Original Query: {state['original_query']}
+    Math Result: {state['first_agent_result']}
     
-    First Agent Result: {state['first_agent_result']}
+    Please analyze this mathematical result and generate ONE specific follow-up mathematical question that can be asked to expand or explore this result further.
     
-    Please analyze this result and provide:
-    only one thoughtful question about the result
+    Output format: Return ONLY the question itself, without any additional text, explanation, or formatting.
+    
+    Example: "What would be the result if we divided this by 2?"
     """
     
     # Get response from question agent

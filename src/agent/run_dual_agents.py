@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Dual Agent System Runner - Server Mode Only
+Triple Agent System Runner - Server Mode Only
 
-This script runs two agents in sequence via langgraph server:
+This script runs three agents in sequence via langgraph server:
 1. Math Agent: Performs calculations using tools
-2. Question Agent: Analyzes the first agent's result and asks follow-up questions
+2. Question Agent: Generates follow-up questions based on the result
+3. Math Agent: Answers the generated question
 
 Usage:
     python run_dual_agents.py
@@ -21,12 +22,13 @@ from dual_agent_system import run_dual_agents
 
 
 async def interactive_mode():
-    """Run the dual agent system in interactive mode"""
-    print("🤖 Dual Agent System - Server Mode")
-    print("==================================")
-    print("This system uses two agents via langgraph server:")
+    """Run the triple agent system in interactive mode"""
+    print("🤖 Triple Agent System - Server Mode")
+    print("===================================")
+    print("This system uses three agents via langgraph server:")
     print("1. Math Agent: Performs calculations using tools")
-    print("2. Question Agent: Analyzes results and asks follow-up questions")
+    print("2. Question Agent: Generates follow-up questions")
+    print("3. Math Agent: Answers the generated question")
     print("\n⚠️  REQUIREMENTS:")
     print("- langgraph server must be running: langgraph dev")
     print("- Server at http://127.0.0.1:2024")
@@ -59,13 +61,17 @@ async def interactive_mode():
                 continue
             
             # Display results
-            print("\n📊 FIRST AGENT (Math Calculation) RESULT:")
+            print("\n📊 STEP 1 - MATH AGENT RESULT:")
             print("-" * 40)
-            print(result['first_agent_result'])
+            print(result['step1_math_result'])
             
-            print("\n🤔 SECOND AGENT (Question & Analysis) RESULT:")
+            print("\n🤔 STEP 2 - GENERATED QUESTION:")
             print("-" * 40)
-            print(result['question_agent_analysis'])
+            print(result['step2_generated_question'])
+            
+            print("\n🔢 STEP 3 - ANSWER TO QUESTION:")
+            print("-" * 40)
+            print(result['step3_answer_to_question'])
             
             print("\n" + "="*50)
             
@@ -81,8 +87,8 @@ async def interactive_mode():
 
 
 async def single_query_mode(query: str):
-    """Run a single query through the dual agent system"""
-    print(f"🔄 Running dual agent system for: '{query}'")
+    """Run a single query through the triple agent system"""
+    print(f"🔄 Running triple agent system for: '{query}'")
     
     try:
         result = await run_dual_agents(query)
@@ -92,17 +98,21 @@ async def single_query_mode(query: str):
             return
         
         print("\n" + "="*60)
-        print("DUAL AGENT SYSTEM RESULTS")
+        print("TRIPLE AGENT SYSTEM RESULTS")
         print("="*60)
         print(f"Original Query: {result['original_query']}")
         
-        print(f"\n📊 First Agent (Math) Result:")
+        print(f"\n📊 Step 1 - Math Agent Result:")
         print("-" * 30)
-        print(result['first_agent_result'])
+        print(result['step1_math_result'])
         
-        print(f"\n🤔 Second Agent (Question & Analysis) Result:")
+        print(f"\n🤔 Step 2 - Generated Question:")
         print("-" * 30)
-        print(result['question_agent_analysis'])
+        print(result['step2_generated_question'])
+        
+        print(f"\n🔢 Step 3 - Answer to Question:")
+        print("-" * 30)
+        print(result['step3_answer_to_question'])
         
     except Exception as e:
         print(f"❌ Error: {e}")
