@@ -32,12 +32,13 @@ def question_agent_node(state: QuestionAgentState):
     
     # Prepare the prompt for the question agent
     analysis_prompt = f"""
-    Original Query: {state['original_query']}
+    Math Result: {state['first_agent_result']}
     
-    First Agent Result: {state['first_agent_result']}
+    Please analyze this mathematical result and generate ONE specific follow-up mathematical question that can be asked to expand or explore this result further.
     
-    Please analyze this result and provide:
-    only one thoughtful question about the result
+    Output format: Return ONLY the question itself, without any additional text, explanation, or formatting.
+    
+    Example: "What would be the result if we divided this by 2?"
     """
     
     # Get response from question agent
