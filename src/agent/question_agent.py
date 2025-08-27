@@ -2,10 +2,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
 from typing import TypedDict, List
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from .config import config
 
 
 class QuestionAgentState(TypedDict):
@@ -15,7 +12,7 @@ class QuestionAgentState(TypedDict):
 
 
 # Define LLM for question agent
-question_llm = ChatOpenAI(model="gpt-4o-mini")
+question_llm = ChatOpenAI(model=config.QUESTION_AGENT_MODEL)
 
 # System message for question agent
 question_sys_msg = SystemMessage(

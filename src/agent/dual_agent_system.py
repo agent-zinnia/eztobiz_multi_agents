@@ -2,28 +2,24 @@ import http.client
 import json
 import asyncio
 from typing import Dict, Any
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from .config import config
 
 
 class DualAgentSystem:
     """System that coordinates two agents using LangGraph Platform API"""
     
-    def __init__(self, platform_url: str = "math-agent-b28e633bb50d549d906652f19bd29d89.us.langgraph.app", 
-                 api_key: str = "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"):
+    def __init__(self, platform_url: str = None, api_key: str = None):
         """Initialize the dual agent system
         
         Args:
-            platform_url: URL of the LangGraph Platform deployment
-            api_key: API key for authentication
+            platform_url: URL of the LangGraph Platform deployment (defaults to config)
+            api_key: API key for authentication (defaults to config)
         """
-        self.platform_url = platform_url
-        self.api_key = api_key
+        self.platform_url = platform_url or config.LANGGRAPH_PLATFORM_URL
+        self.api_key = api_key or config.LANGGRAPH_API_KEY
         self.headers = {
-            'Content-Type': "application/json",
-            'x-api-key': api_key
+            'Content-Type': config.HTTP_CONTENT_TYPE,
+            'x-api-key': self.api_key
         }
     
     def _extract_last_ai_message(self, messages: list) -> str:
@@ -172,7 +168,7 @@ class DualAgentSystem:
             buffer = ""
             
             while True:
-                chunk = response.read(1024)
+                chunk = response.read(config.AGENT_STREAM_CHUNK_SIZE)
                 if not chunk:
                     break
                     
@@ -266,8 +262,8 @@ class DualAgentSystem:
             
             # Wait for completion by checking thread state
             import time
-            max_wait = 30  # Maximum wait time in seconds
-            check_interval = 2  # Check every 2 seconds
+            max_wait = config.AGENT_MAX_WAIT_TIME  # Maximum wait time in seconds
+            check_interval = config.AGENT_CHECK_INTERVAL  # Check interval in seconds
             waited = 0
             
             while waited < max_wait:
@@ -351,7 +347,7 @@ class DualAgentSystem:
             }
             
             # Run the math agent on the thread
-            run_result = self._run_on_thread(thread_id, input_data, assistant_id="math_agent")
+            run_result = self._run_on_thread(thread_id, input_data, assistant_id=config.MATH_AGENT_ASSISTANT_ID)
             
             if not run_result["success"]:
                 return {
@@ -566,15 +562,15 @@ class DualAgentSystem:
 
 # Convenience function for easy usage
 async def run_dual_agents(query: str, 
-                         platform_url: str = "math-agent-b28e633bb50d549d906652f19bd29d89.us.langgraph.app",
-                         api_key: str = "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",
+                         platform_url: str = None,
+                         api_key: str = None,
                          question_rounds: int = 1) -> Dict[str, Any]:
     """Convenience function to run the dual agent system using LangGraph Platform
     
     Args:
         query: User's question
-        platform_url: URL of the LangGraph Platform deployment
-        api_key: API key for authentication
+        platform_url: URL of the LangGraph Platform deployment (defaults to config)
+        api_key: API key for authentication (defaults to config)
         question_rounds: Number of question rounds to run (default: 1)
         
     Returns:

@@ -13,8 +13,8 @@ Usage:
     python run_dual_agents.py --rounds 5 "Calculate 10 * 20"     # 5 question rounds
     
 REQUIREMENTS:
-- Make sure the langgraph server is running: langgraph dev
-- Server should be available at http://127.0.0.1:2024
+- Make sure the langgraph server is running: langgraph dev  
+- Server should be available at configured URL (check env.example)
 - question_agent graph must be deployed locally
 """
 
@@ -28,13 +28,14 @@ src_dir = os.path.join(os.path.dirname(__file__), '..')
 sys.path.insert(0, src_dir)
 
 from agent.dual_agent_system import run_dual_agents
+from agent.config import config
 
 
 def _print_server_requirements():
     """Print server requirements message"""
     print("Please make sure:")
     print("1. langgraph server is running: langgraph dev")
-    print("2. Server is available at http://127.0.0.1:2024")
+    print(f"2. Server is available at {config.LANGGRAPH_LOCAL_SERVER_URL}")
     print("3. question_agent graph is deployed locally")
 
 
@@ -89,6 +90,13 @@ async def single_query_mode(query: str, question_rounds: int = 1):
 
 def main():
     """Main function to handle command line arguments or user input"""
+    # Validate configuration before proceeding
+    if not config.validate_config():
+        print("\n❌ Configuration validation failed!")
+        print("Please check your .env file and ensure all required variables are set.")
+        print("See env.example for reference.")
+        return
+    
     parser = argparse.ArgumentParser(
         description="Dual Agent System - Run math and question agents sequentially",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -101,7 +109,7 @@ Examples:
 
 REQUIREMENTS:
 - langgraph server must be running: langgraph dev
-- Server at http://127.0.0.1:2024  
+- Server at configured URL (check env.example)
 - question_agent graph deployed locally
         """
     )
@@ -132,7 +140,7 @@ REQUIREMENTS:
         print("2. Question Agent: Generates follow-up questions")
         print("\n⚠️  REQUIREMENTS:")
         print("- langgraph server must be running: langgraph dev")
-        print("- Server at http://127.0.0.1:2024")
+        print(f"- Server at {config.LANGGRAPH_LOCAL_SERVER_URL}")
         print("- question_agent graph deployed locally")
         print("-" * 45)
         
