@@ -101,23 +101,26 @@ class DualAgentSystem:
         """Use the question agent via langgraph server to generate a question based on the first agent's result
         
         Args:
-            first_agent_result: Result from the first agent
+            first_agent_result: Result from the first agent (ONLY the answer, not the original question)
             
         Returns:
             Generated question from the question agent
         """
         try:
-            # Create a thread for the question agent
+            # Create a NEW thread specifically for the question agent to avoid context leakage
             thread = await self.client.threads.create()
             thread_id = thread["thread_id"]
             
-            # Run the question agent via server - only pass the first agent's result
+            # Run the question agent via server - ONLY pass the first agent's result
+            # Create a completely isolated input to prevent any context leakage
+            isolated_prompt = f"Given this mathematical result: {first_agent_result}, generate a follow-up mathematical question."
+            
             run = await self.client.runs.create(
                 thread_id=thread_id,
                 assistant_id="question_agent",  # This matches the graph name in langgraph.json
                 input={
-                    "first_agent_result": first_agent_result,
-                    "messages": []
+                    "first_agent_result": first_agent_result,  # Only the math result
+                    "messages": [HumanMessage(content=isolated_prompt)]  # Direct prompt without context
                 }
             )
             
