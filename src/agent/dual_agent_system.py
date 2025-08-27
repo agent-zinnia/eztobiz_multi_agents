@@ -1,20 +1,30 @@
-from langgraph_sdk import get_client
-from langchain_core.messages import HumanMessage
+import http.client
+import json
 import asyncio
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class DualAgentSystem:
-    """System that coordinates two agents using langgraph_sdk"""
+    """System that coordinates two agents using LangGraph Platform API"""
     
-    def __init__(self, url: str = "http://127.0.0.1:2024"):
+    def __init__(self, platform_url: str = "math-agent-b28e633bb50d549d906652f19bd29d89.us.langgraph.app", 
+                 api_key: str = "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"):
         """Initialize the dual agent system
         
         Args:
-            url: URL of the local langgraph server
+            platform_url: URL of the LangGraph Platform deployment
+            api_key: API key for authentication
         """
-        self.url = url
-        self.client = get_client(url=url)
+        self.platform_url = platform_url
+        self.api_key = api_key
+        self.headers = {
+            'Content-Type': "application/json",
+            'x-api-key': api_key
+        }
     
     def _extract_last_ai_message(self, messages: list) -> str:
         """Extract the last AI message from a list of messages
@@ -30,7 +40,8 @@ class DualAgentSystem:
             if hasattr(msg, 'type') and msg.type == "ai":
                 return msg.content
             elif isinstance(msg, dict) and msg.get("type") == "ai":
-                return msg.get("content", "")
+                content = msg.get("content", "")
+                return content
         
         # Fallback: get any message content
         if messages:
@@ -41,11 +52,269 @@ class DualAgentSystem:
                 return last_msg.get("content", str(last_msg))
             else:
                 return str(last_msg)
-        
         return "No result generated"
     
+    def _create_thread(self) -> Dict[str, Any]:
+        """Create a new thread on LangGraph Platform
+        
+        Returns:
+            Dictionary containing thread_id and creation status
+        """
+        try:
+            conn = http.client.HTTPSConnection(self.platform_url)
+            
+            # Create thread payload - simplified version without complex metadata
+            payload = json.dumps({
+                "metadata": {},
+                "if_exists": "raise"
+            })
+            
+            conn.request("POST", "/threads", payload, self.headers)
+            response = conn.getresponse()
+            data = response.read()
+            
+            if response.status == 200:
+                result = json.loads(data.decode("utf-8"))
+                return {
+                    "success": True,
+                    "thread_id": result.get("thread_id"),
+                    "response": result
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Failed to create thread: {response.status} - {data.decode('utf-8')}"
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Exception creating thread: {str(e)}"
+            }
+        finally:
+            try:
+                conn.close()
+            except:
+                pass
+    
+    def _get_thread_state(self, thread_id: str) -> Dict[str, Any]:
+        """Get the current state of a thread
+        
+        Args:
+            thread_id: The thread ID to get state for
+            
+        Returns:
+            Dictionary containing the thread state
+        """
+        try:
+            conn = http.client.HTTPSConnection(self.platform_url)
+            
+            conn.request("GET", f"/threads/{thread_id}/state", headers=self.headers)
+            response = conn.getresponse()
+            data = response.read()
+            
+            if response.status == 200:
+                result = json.loads(data.decode("utf-8"))
+                return {
+                    "success": True,
+                    "result": result
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Failed to get thread state: {response.status} - {data.decode('utf-8')}"
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Exception getting thread state: {str(e)}"
+            }
+        finally:
+            try:
+                conn.close()
+            except:
+                pass
+
+    def _run_on_thread_stream(self, thread_id: str, input_data: Dict[str, Any], assistant_id: str = "agent") -> Dict[str, Any]:
+        """Run an agent on a specific thread with streaming
+        
+        Args:
+            thread_id: The thread ID to run on
+            input_data: The input data for the agent
+            assistant_id: The assistant/graph ID to run
+            
+        Returns:
+            Dictionary containing the run result and final messages
+        """
+        try:
+            conn = http.client.HTTPSConnection(self.platform_url)
+            
+            # Create run payload with streaming
+            payload = json.dumps({
+                "input": input_data,
+                "assistant_id": assistant_id,
+                "stream_mode": "updates"
+            })
+            
+            conn.request("POST", f"/threads/{thread_id}/runs/stream", payload, self.headers)
+            response = conn.getresponse()
+            
+            if response.status != 200:
+                data = response.read()
+                return {
+                    "success": False,
+                    "error": f"Failed to run stream on thread: {response.status} - {data.decode('utf-8')}"
+                }
+            
+            # Read the stream data
+            stream_data = []
+            buffer = ""
+            
+            while True:
+                chunk = response.read(1024)
+                if not chunk:
+                    break
+                    
+                buffer += chunk.decode('utf-8')
+                lines = buffer.split('\n')
+                buffer = lines[-1]  # Keep incomplete line in buffer
+                
+                for line in lines[:-1]:
+                    line = line.strip()
+                    if line.startswith('data: '):
+                        try:
+                            data_str = line[6:]  # Remove 'data: ' prefix
+                            if data_str and data_str != '[DONE]':
+                                stream_item = json.loads(data_str)
+                                stream_data.append(stream_item)
+                                # print(f"DEBUG: Stream item: {stream_item}")  # Comment out for cleaner output
+                        except json.JSONDecodeError:
+                            continue
+            
+            if stream_data:
+                # Get the last stream item which should contain the final state
+                final_state = stream_data[-1]
+                return {
+                    "success": True,
+                    "result": final_state,
+                    "stream_data": stream_data
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "No data received from stream"
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Exception running stream on thread: {str(e)}"
+            }
+        finally:
+            try:
+                conn.close()
+            except:
+                pass
+
+    def _run_on_thread(self, thread_id: str, input_data: Dict[str, Any], assistant_id: str = "agent") -> Dict[str, Any]:
+        """Run an agent on a specific thread and wait for completion
+        
+        Args:
+            thread_id: The thread ID to run on
+            input_data: The input data for the agent
+            assistant_id: The assistant/graph ID to run
+            
+        Returns:
+            Dictionary containing the run result and final messages
+        """
+        # First try streaming approach
+        stream_result = self._run_on_thread_stream(thread_id, input_data, assistant_id)
+        if stream_result["success"]:
+            return stream_result
+        
+        # print(f"DEBUG: Stream failed, falling back to polling: {stream_result['error']}")  # Comment out for cleaner output
+        
+        # Fallback to polling approach
+        try:
+            conn = http.client.HTTPSConnection(self.platform_url)
+            
+            # Create run payload with required assistant_id
+            payload = json.dumps({
+                "input": input_data,
+                "assistant_id": assistant_id
+            })
+            
+            conn.request("POST", f"/threads/{thread_id}/runs", payload, self.headers)
+            response = conn.getresponse()
+            data = response.read()
+            
+            if response.status != 200:
+                return {
+                    "success": False,
+                    "error": f"Failed to run on thread: {response.status} - {data.decode('utf-8')}"
+                }
+            
+            run_result = json.loads(data.decode("utf-8"))
+            run_id = run_result.get("run_id")
+            
+            if not run_id:
+                return {
+                    "success": False,
+                    "error": "No run_id returned from the API"
+                }
+            
+            # Wait for completion by checking thread state
+            import time
+            max_wait = 30  # Maximum wait time in seconds
+            check_interval = 2  # Check every 2 seconds
+            waited = 0
+            
+            while waited < max_wait:
+                state_result = self._get_thread_state(thread_id)
+                if state_result["success"]:
+                    state_data = state_result["result"]
+                    # Check if there are any remaining tasks
+                    if "next" in state_data and state_data["next"]:
+                        # print(f"DEBUG: Still processing, next steps: {state_data['next']}")  # Comment out for cleaner output
+                        time.sleep(check_interval)
+                        waited += check_interval
+                        continue
+                    
+                    # No more tasks, execution is complete
+                    return {
+                        "success": True,
+                        "result": state_data,
+                        "run_id": run_id,
+                        "response_data": data.decode("utf-8")
+                    }
+                
+                time.sleep(check_interval)
+                waited += check_interval
+            
+            # Timeout - return what we have
+            final_state = self._get_thread_state(thread_id)
+            return {
+                "success": True,
+                "result": final_state.get("result", run_result),
+                "run_id": run_id,
+                "response_data": data.decode("utf-8"),
+                "warning": "Timeout waiting for completion"
+            }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Exception running on thread: {str(e)}"
+            }
+        finally:
+            try:
+                conn.close()
+            except:
+                pass
+    
     async def run_math_agent(self, query: str, thread_id: str = None) -> Dict[str, Any]:
-        """Run the math agent with the given query
+        """Run the math agent with the given query using LangGraph Platform
         
         Args:
             query: The user's question/request
@@ -55,37 +324,92 @@ class DualAgentSystem:
             Dictionary containing the result from the math agent
         """
         try:
-            # Create a new thread if none provided, otherwise use existing one
+            # Create a new thread if none provided
             if thread_id is None:
-                thread = await self.client.threads.create()
-                thread_id = thread["thread_id"]
+                thread_result = self._create_thread()
+                if not thread_result["success"]:
+                    return {
+                        "success": False,
+                        "error": f"Failed to create thread: {thread_result['error']}",
+                        "result": None,
+                        "thread_id": None,
+                        "is_new_thread": True
+                    }
+                thread_id = thread_result["thread_id"]
                 is_new_thread = True
             else:
                 is_new_thread = False
             
-            # Run the math agent (using the graph name from langgraph.json)
-            run = await self.client.runs.create(
-                thread_id=thread_id,
-                assistant_id="math_agent",  # This matches the graph name in langgraph.json
-                input={"messages": [HumanMessage(content=query)]}
-            )
+            # Prepare input for the math agent
+            input_data = {
+                "messages": [
+                    {
+                        "type": "human",
+                        "content": query
+                    }
+                ]
+            }
             
-            # Wait for completion
-            await self.client.runs.join(thread_id=thread_id, run_id=run["run_id"])
+            # Run the math agent on the thread
+            run_result = self._run_on_thread(thread_id, input_data, assistant_id="math_agent")
             
-            # Get the final state/messages
-            state = await self.client.threads.get_state(thread_id=thread_id)
+            if not run_result["success"]:
+                return {
+                    "success": False,
+                    "error": f"Failed to run math agent: {run_result['error']}",
+                    "result": None,
+                    "thread_id": thread_id,
+                    "is_new_thread": is_new_thread
+                }
             
-            # Extract messages from the state
-            messages = state.get("values", {}).get("messages", [])
-            last_ai_message = self._extract_last_ai_message(messages)
+            # Extract the result from the response
+            result_data = run_result["result"]
+            # Debug information (can be removed for production)
+            # print(f"DEBUG: Result data type: {type(result_data)}")
+            # print(f"DEBUG: Result data keys: {result_data.keys() if isinstance(result_data, dict) else 'Not a dict'}")
+            # print(f"DEBUG: Full result data: {json.dumps(result_data, indent=2) if isinstance(result_data, (dict, list)) else str(result_data)}")
+            
+            # Handle different response types
+            if isinstance(result_data, dict):
+                # Check for errors first
+                if "error" in result_data:
+                    error_msg = result_data.get("message", str(result_data))
+                    last_ai_message = f"Platform error: {error_msg}"
+                
+                elif "values" in result_data:
+                    # Get messages from the thread state
+                    values = result_data["values"]
+                    if "messages" in values:
+                        messages = values["messages"]
+                        last_ai_message = self._extract_last_ai_message(messages)
+                    else:
+                        last_ai_message = str(values)
+                
+                elif "assistant" in result_data and "messages" in result_data["assistant"]:
+                    # Handle LangGraph Platform response format
+                    messages = result_data["assistant"]["messages"]
+                    last_ai_message = self._extract_last_ai_message(messages)
+                
+                else:
+                    last_ai_message = str(result_data)
+                    
+            elif isinstance(result_data, list) and len(result_data) > 0:
+                # Take the last item in the stream
+                last_item = result_data[-1]
+                if "messages" in last_item:
+                    messages = last_item["messages"]
+                    last_ai_message = self._extract_last_ai_message(messages)
+                else:
+                    last_ai_message = str(last_item)
+            else:
+                last_ai_message = str(result_data)
             
             return {
                 "success": True,
                 "result": last_ai_message,
                 "thread_id": thread_id,
-                "run_id": run["run_id"],
-                "is_new_thread": is_new_thread
+                "is_new_thread": is_new_thread,
+                "full_response": result_data
             }
             
         except Exception as e:
@@ -98,7 +422,7 @@ class DualAgentSystem:
             }
     
     async def generate_question_with_question_agent(self, first_agent_result: str) -> str:
-        """Use the question agent via langgraph server to generate a question based on the first agent's result
+        """Use the local question agent to generate a question based on the first agent's result
         
         Args:
             first_agent_result: Result from the first agent (ONLY the answer, not the original question)
@@ -107,37 +431,41 @@ class DualAgentSystem:
             Generated question from the question agent
         """
         try:
-            # Create a NEW thread specifically for the question agent to avoid context leakage
-            thread = await self.client.threads.create()
-            thread_id = thread["thread_id"]
+            # Import the local question agent
+            try:
+                from agent.question_agent import question_agent_graph
+            except ImportError:
+                # Fallback for when running from different paths
+                from question_agent import question_agent_graph
             
-            # Run the question agent via server - ONLY pass the first agent's result
-            # Create a completely isolated input to prevent any context leakage
-            isolated_prompt = f"Given this mathematical result: {first_agent_result}, generate a follow-up mathematical question."
+            # Create isolated input to prevent context leakage
+            input_data = {
+                "first_agent_result": first_agent_result,  # Only the math result
+                "messages": []
+            }
             
-            run = await self.client.runs.create(
-                thread_id=thread_id,
-                assistant_id="question_agent",  # This matches the graph name in langgraph.json
-                input={
-                    "first_agent_result": first_agent_result,  # Only the math result
-                    "messages": [HumanMessage(content=isolated_prompt)]  # Direct prompt without context
-                }
-            )
+            # Run the local question agent
+            result = await question_agent_graph.ainvoke(input_data)
             
-            # Wait for completion
-            await self.client.runs.join(thread_id=thread_id, run_id=run["run_id"])
+            # Extract the generated question from the result
+            if "messages" in result and result["messages"]:
+                last_message = result["messages"][-1]
+                if hasattr(last_message, 'content'):
+                    generated_question = last_message.content
+                elif isinstance(last_message, dict):
+                    generated_question = last_message.get('content', str(last_message))
+                else:
+                    generated_question = str(last_message)
+            else:
+                generated_question = "No question generated by question agent"
             
-            # Get the final state/messages
-            state = await self.client.threads.get_state(thread_id=thread_id)
-            
-            # Extract messages from the state
-            messages = state.get("values", {}).get("messages", [])
-            generated_question = self._extract_last_ai_message(messages)
-            
-            return generated_question if generated_question != "No result generated" else "No question generated by question agent"
+            return generated_question
                 
         except Exception as e:
-            return f"Error in question agent: {str(e)}"
+            import traceback
+            error_msg = str(e)
+            traceback_msg = traceback.format_exc()
+            return f"Error in question agent: {error_msg}\nTraceback: {traceback_msg}"
     
 
     
@@ -237,18 +565,22 @@ class DualAgentSystem:
 
 
 # Convenience function for easy usage
-async def run_dual_agents(query: str, server_url: str = "http://127.0.0.1:2024", question_rounds: int = 1) -> Dict[str, Any]:
-    """Convenience function to run the dual agent system
+async def run_dual_agents(query: str, 
+                         platform_url: str = "math-agent-b28e633bb50d549d906652f19bd29d89.us.langgraph.app",
+                         api_key: str = "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",
+                         question_rounds: int = 1) -> Dict[str, Any]:
+    """Convenience function to run the dual agent system using LangGraph Platform
     
     Args:
         query: User's question
-        server_url: URL of the langgraph server
+        platform_url: URL of the LangGraph Platform deployment
+        api_key: API key for authentication
         question_rounds: Number of question rounds to run (default: 1)
         
     Returns:
         Results from both steps (Math -> Question)
     """
-    system = DualAgentSystem(url=server_url)
+    system = DualAgentSystem(platform_url=platform_url, api_key=api_key)
     return await system.run_dual_agent_workflow(query, question_rounds)
 
 

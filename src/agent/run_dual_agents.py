@@ -2,8 +2,8 @@
 """
 Dual Agent System Runner - Configurable Question Rounds
 
-This script runs two agents in sequence via langgraph server:
-1. Math Agent: Performs calculations using tools
+This script runs two agents in sequence:
+1. Math Operations: Performs calculations via LangGraph Platform API
 2. Question Agent: Generates follow-up questions based on the result
 
 Usage:
@@ -15,13 +15,19 @@ Usage:
 REQUIREMENTS:
 - Make sure the langgraph server is running: langgraph dev
 - Server should be available at http://127.0.0.1:2024
-- Both math_agent and question_agent graphs must be deployed
+- question_agent graph must be deployed locally
 """
 
 import asyncio
 import sys
 import argparse
-from dual_agent_system import run_dual_agents
+import os
+
+# Add the src directory to Python path for proper imports
+src_dir = os.path.join(os.path.dirname(__file__), '..')
+sys.path.insert(0, src_dir)
+
+from agent.dual_agent_system import run_dual_agents
 
 
 def _print_server_requirements():
@@ -29,7 +35,7 @@ def _print_server_requirements():
     print("Please make sure:")
     print("1. langgraph server is running: langgraph dev")
     print("2. Server is available at http://127.0.0.1:2024")
-    print("3. Both math_agent and question_agent graphs are deployed")
+    print("3. question_agent graph is deployed locally")
 
 
 
@@ -96,7 +102,7 @@ Examples:
 REQUIREMENTS:
 - langgraph server must be running: langgraph dev
 - Server at http://127.0.0.1:2024  
-- Both math_agent and question_agent graphs deployed
+- question_agent graph deployed locally
         """
     )
     
@@ -122,12 +128,12 @@ REQUIREMENTS:
         print("🤖 Dual Agent System - Single Query Mode")
         print("=" * 45)
         print("This system uses two agents via langgraph server:")
-        print("1. Math Agent: Performs calculations using tools")
+        print("1. Math Operations: Via LangGraph Platform API")
         print("2. Question Agent: Generates follow-up questions")
         print("\n⚠️  REQUIREMENTS:")
         print("- langgraph server must be running: langgraph dev")
         print("- Server at http://127.0.0.1:2024")
-        print("- Both math_agent and question_agent graphs deployed")
+        print("- question_agent graph deployed locally")
         print("-" * 45)
         
         try:

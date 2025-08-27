@@ -2,6 +2,10 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
 from typing import TypedDict, List
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class QuestionAgentState(TypedDict):
