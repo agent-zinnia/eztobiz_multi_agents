@@ -23,8 +23,9 @@ class AgentConfig:
     
     # Math Agent Configuration
     MATH_AGENT_ASSISTANT_ID: str = "math_agent"
+    MATH_AGENT_MODEL: str = "gpt-4o-mini"  # Model for standalone math operations
     
-    # Question Agent Configuration
+    # Question Agent Configuration  
     QUESTION_AGENT_MODEL: str = "gpt-4o-mini"
     
     # Local LangGraph Server Configuration
@@ -37,6 +38,11 @@ class AgentConfig:
     
     # HTTP Configuration
     HTTP_CONTENT_TYPE: str = "application/json"
+    HTTP_SUCCESS_STATUS: int = 200
+    
+    # Stream Processing Configuration
+    STREAM_DATA_PREFIX: str = "data: "
+    STREAM_DONE_MARKER: str = "[DONE]"
     
     @classmethod
     def validate_config(cls) -> bool:
@@ -66,6 +72,7 @@ class AgentConfig:
         print(f"  Local Server: {cls.LANGGRAPH_LOCAL_SERVER_URL}")
         print(f"  Question Model: {cls.QUESTION_AGENT_MODEL}")
         print(f"  Math Agent ID: {cls.MATH_AGENT_ASSISTANT_ID}")
+        print(f"  Math Agent Model: {cls.MATH_AGENT_MODEL}")
         print(f"  Max Wait Time: {cls.AGENT_MAX_WAIT_TIME}s")
         print(f"  Check Interval: {cls.AGENT_CHECK_INTERVAL}s")
         print(f"  Stream Chunk Size: {cls.AGENT_STREAM_CHUNK_SIZE}")
