@@ -1,0 +1,8 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "question_agent": "./src/agent/question_agent.py:question_agent_graph"
+  },
+  "env": "./.env",
+  "image_distro": "wolfi"
+}
