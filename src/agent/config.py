@@ -18,7 +18,7 @@ class AgentConfig:
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     
     # LangGraph Platform Configuration
-    LANGGRAPH_PLATFORM_URL: str = "math-agent-b28e633bb50d549d906652f19bd29d89.us.langgraph.app"
+    LANGGRAPH_PLATFORM_URL: str = "test-98b04f86355f58019a022f94c6ed1032.us.langgraph.app"
     LANGGRAPH_API_KEY: str = os.getenv("LANGGRAPH_API_KEY")
     
     # Math Agent Configuration

@@ -13,9 +13,8 @@ Usage:
     python run_dual_agents.py --rounds 5 "Calculate 10 * 20"     # 5 question rounds
     
 REQUIREMENTS:
-- Make sure the langgraph server is running: langgraph dev  
-- Server should be available at configured URL (check env.example)
-- question_agent graph must be deployed locally
+- Set up your .env file with OPENAI_API_KEY and LANGGRAPH_API_KEY
+- See env.example for reference
 """
 
 import argparse
@@ -42,17 +41,17 @@ HEADER_SEPARATOR_LENGTH = 45
 # UI Messages
 UI_MESSAGES = {
     'title': '🤖 Dual Agent System - Single Query Mode',
-    'description': 'This system uses two agents via langgraph server:',
+    'description': 'This system uses two agents:',
     'math_agent_desc': '1. Math Operations: Via LangGraph Platform API',
     'question_agent_desc': '2. Question Agent: Generates follow-up questions',
     'requirements_header': '⚠️  REQUIREMENTS:',
-    'server_requirement': 'langgraph server must be running: langgraph dev',
+    'server_requirement': 'Set up .env file with OPENAI_API_KEY and LANGGRAPH_API_KEY',
     'running_prompt': '🔄 Running dual agent system for: \'{}\'',
     'results_header': 'DUAL AGENT SYSTEM RESULTS',
     'original_query': 'Original Query: {}',
-    'math_result_header': '📊 Step 1 - Math Agent Result:',
-    'question_header': '🤔 Round {} - Generated Question:',
-    'answer_header': '🔢 Round {} - Answer:',
+    'math_result_header': '📊 Math Agent Result:',
+    'question_header': '🤔 Generated Question:',
+    'answer_header': '🔢 Answer:',
     'summary': '📊 Summary: Completed {}/{} question rounds',
     'input_prompt': '💬 Enter your math question: ',
     'rounds_prompt': '🔄 How many question rounds? (default: 1): ',
@@ -73,11 +72,11 @@ ERROR_MESSAGES = {
 
 
 def _print_server_requirements() -> None:
-    """Print server requirements message."""
+    """Print API requirements message."""
     print("Please make sure:")
-    print("1. langgraph server is running: langgraph dev")
-    print(f"2. Server is available at {config.LANGGRAPH_LOCAL_SERVER_URL}")
-    print("3. question_agent graph is deployed locally")
+    print("1. Create .env file from env.example")
+    print("2. Set OPENAI_API_KEY in .env file")
+    print("3. Set LANGGRAPH_API_KEY in .env file")
 
 
 
@@ -194,9 +193,8 @@ Examples:
   python run_dual_agents.py --rounds 5 "Calculate 10 * 20"   # Direct query (5 rounds)
 
 REQUIREMENTS:
-- langgraph server must be running: langgraph dev
-- Server at configured URL (check env.example)
-- question_agent graph deployed locally
+- Set up .env file with OPENAI_API_KEY and LANGGRAPH_API_KEY
+- See env.example for reference
         """
     )
     
@@ -224,8 +222,7 @@ def _print_interactive_header() -> None:
     print(UI_MESSAGES['question_agent_desc'])
     print(f"\n{UI_MESSAGES['requirements_header']}")
     print(f"- {UI_MESSAGES['server_requirement']}")
-    print(f"- Server at {config.LANGGRAPH_LOCAL_SERVER_URL}")
-    print("- question_agent graph deployed locally")
+    print(f"- See env.example for required variables")
     print("-" * HEADER_SEPARATOR_LENGTH)
 
 
