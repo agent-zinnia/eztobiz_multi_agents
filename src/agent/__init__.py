@@ -3,6 +3,6 @@
 This module defines a custom graph.
 """
 
-from agent.math_agent import graph
+# Note: Using Platform API for math operations instead of local graph
 
-__all__ = ["graph"]
+# __all__ = ["graph"]

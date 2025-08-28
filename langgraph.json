@@ -1,7 +1,6 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "math_agent": "./src/agent/math_agent.py:graph",
     "question_agent": "./src/agent/question_agent.py:question_agent_graph"
   },
   "env": "./.env",
